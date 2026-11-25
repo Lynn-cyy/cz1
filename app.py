@@ -15,6 +15,7 @@ fm.fontManager.addfont(font_path)
 plt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC'] 
 plt.rcParams['axes.unicode_minus'] = False
 
+# 把页面调宽，并加上图标
 st.set_page_config(page_title="员工管理系统", page_icon="📊", layout="wide")
 
 # ================= 2. 登录验证 =================
@@ -39,10 +40,10 @@ if st.sidebar.button("退出登录"):
     st.session_state.logged_in = False
     st.rerun()
 
+# ================= 3. 数据库初始化 =================
 st.title("📊 员工管理系统 & 薪资看板")
 db_path = 'practice.db'
 
-# ================= 3. 数据库：自动建两张表并关联 =================
 def init_db():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -83,7 +84,7 @@ def execute_query(query, params=()):
     conn.commit()
     conn.close()
 
-# ================= 4. 侧边栏：完整数据操作 =================
+# ================= 4. 侧边栏：数据操作 =================
 with st.sidebar:
     st.header("🛠️ 数据操作")
     
@@ -94,7 +95,7 @@ with st.sidebar:
     if st.button("添加"):
         if new_name and new_role:
             execute_query("INSERT INTO users (name, role) VALUES (?, ?)", (new_name, new_role))
-            st.success("添加成功！")
+            st.toast("✅ 添加成功！", icon="🎉")
             st.rerun()
         else:
             st.warning("请填写完整")
@@ -108,29 +109,44 @@ with st.sidebar:
     if st.button("更新"):
         if modify_name and modify_role:
             execute_query("UPDATE users SET role = ? WHERE name = ?", (modify_role, modify_name))
-            st.success(f"已更新 {modify_name}！")
+            st.toast(f"✅ 已更新 {modify_name} 的角色！", icon="👍")
             st.rerun()
         else:
             st.warning("请填写完整")
 
     st.divider()
 
-    # 删除
+    # 删除（加了防呆弹窗）
     st.subheader("🗑️ 删除员工")
     delete_name = st.text_input("要开除谁？(输入名字)", key="del_name")
-    if st.button("删除", type="primary"):
-        if delete_name:
-            execute_query("DELETE FROM users WHERE name = ?", (delete_name,))
-            st.success(f"已删除 {delete_name}！")
-            st.rerun()
-        else:
-            st.warning("请输入名字")
+    
+    # 用 expander 做二次确认防误触
+    if delete_name:
+        with st.expander(f"⚠️ 确认要删除 {delete_name} 吗？"):
+            st.write("此操作不可逆，请确认。")
+            if st.button("确认删除", type="primary"):
+                execute_query("DELETE FROM users WHERE name = ?", (delete_name,))
+                st.toast(f"🗑️ 已删除 {delete_name}！", icon="🔥")
+                st.rerun()
 
-# ================= 5. 主界面：搜索与多表展示 =================
-st.subheader("🔍 员工综合查询（输入名字或角色进行实时搜索）")
+# ================= 5. 主界面：数据大屏 =================
+st.subheader("🔍 员工综合查询")
 search_query = st.text_input("搜索框：", "")
 
 data = get_joined_data(search_query)
+
+# 增加顶部数据卡片 (Metrics)
+if not data.empty:
+    total_employees = len(data)
+    total_salary = data['工资'].sum()
+    avg_salary = data['工资'].mean()
+    
+    m1, m2, m3 = st.columns(3)
+    m1.metric("当前总人数", f"{total_employees} 人")
+    m2.metric("总薪资支出", f"¥ {total_salary:,}")
+    m3.metric("平均薪资", f"¥ {avg_salary:,.0f}")
+
+st.divider()
 
 col1, col2 = st.columns([1, 1])
 
