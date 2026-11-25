@@ -6,7 +6,7 @@ import matplotlib.font_manager as fm
 import urllib.request
 import os
 
-# ================= 1. 解决云端图表中文乱码问题 =================
+# ================= 1. 字体与页面设置 =================
 font_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
 font_path = "NotoSansCJKsc-Regular.otf"
 if not os.path.exists(font_path):
@@ -15,56 +15,75 @@ fm.fontManager.addfont(font_path)
 plt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC'] 
 plt.rcParams['axes.unicode_minus'] = False
 
-# ================= 2. 页面基础设置 =================
 st.set_page_config(page_title="员工管理系统", page_icon="📊", layout="wide")
 
-# ================= 3. 登录状态管理 =================
+# ================= 2. 登录验证 =================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
     st.title("🔐 系统登录")
-    st.info("请先登录，才能查看员工数据看板。")
-    
     with st.form("login_form"):
         username = st.text_input("用户名")
         password = st.text_input("密码", type="password")
-        submit_button = st.form_submit_button("登录")
-        
-        if submit_button:
+        if st.form_submit_button("登录"):
             if username == "admin" and password == "123456":
                 st.session_state.logged_in = True
-                st.success("登录成功！正在加载系统...")
                 st.rerun()
             else:
-                st.error("用户名或密码错误，请重试！")
-    
+                st.error("用户名或密码错误！")
     st.stop()
 
-# ================= 4. 登录成功后 =================
 st.sidebar.success("✅ 已登录: admin")
 if st.sidebar.button("退出登录"):
     st.session_state.logged_in = False
     st.rerun()
 
-st.title("📊 员工管理系统 & 数据看板")
+st.title("📊 员工管理系统 & 薪资看板")
 db_path = 'practice.db'
 
-def get_data():
+# ================= 3. 数据库：自动建两张表并关联 =================
+def init_db():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-    if not cursor.fetchone():
-        cursor.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
+    
+    # 建第一张表：员工表
+    cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
+    
+    # 建第二张表：薪资表 (关联 user_id)
+    cursor.execute("CREATE TABLE IF NOT EXISTS salaries (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, month TEXT)")
+    
+    # 检查如果是新库，就塞点测试数据进去
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO users (name, role) VALUES ('张三', 'CTO')")
         cursor.execute("INSERT INTO users (name, role) VALUES ('王五', '财务')")
         cursor.execute("INSERT INTO users (name, role) VALUES ('李四', '销售')")
         cursor.execute("INSERT INTO users (name, role) VALUES ('赵六', '销售')")
-        cursor.execute("INSERT INTO users (name, role) VALUES ('孙七', '技术')")
-        cursor.execute("INSERT INTO users (name, role) VALUES ('周八', '技术')")
-        cursor.execute("INSERT INTO users (name, role) VALUES ('吴九', '技术')")
+        
+        # 给张三、李四发点工资
+        cursor.execute("INSERT INTO salaries (user_id, amount, month) VALUES (1, 50000, '2026-11')")
+        cursor.execute("INSERT INTO salaries (user_id, amount, month) VALUES (2, 15000, '2026-11')")
+        cursor.execute("INSERT INTO salaries (user_id, amount, month) VALUES (3, 8000, '2026-11')")
         conn.commit()
-    df = pd.read_sql_query("SELECT * FROM users", conn)
+    conn.close()
+
+init_db()
+
+# 获取数据函数 (支持搜索)
+def get_joined_data(search_term=""):
+    conn = sqlite3.connect(db_path)
+    # 使用 LEFT JOIN 把员工和薪资连起来，并支持搜索
+    query = """
+        SELECT u.id, u.name, u.role, COALESCE(s.amount, 0) as 工资, s.month as 月份
+        FROM users u
+        LEFT JOIN salaries s ON u.id = s.user_id
+    """
+    if search_term:
+        # 如果搜索了，就加条件
+        query += f" WHERE u.name LIKE '%{search_term}%' OR u.role LIKE '%{search_term}%'"
+        
+    df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
@@ -75,6 +94,7 @@ def execute_query(query, params=()):
     conn.commit()
     conn.close()
 
+# ================= 4. 侧边栏：数据操作 =================
 with st.sidebar:
     st.header("🛠️ 数据操作")
     st.subheader("➕ 新增员工")
@@ -84,48 +104,28 @@ with st.sidebar:
         if new_name and new_role:
             execute_query("INSERT INTO users (name, role) VALUES (?, ?)", (new_name, new_role))
             st.success("添加成功！")
-        else:
-            st.warning("请填写完整")
-            
-    st.divider()
-    st.subheader("✏️ 修改角色")
-    modify_name = st.text_input("要修改谁的名字？", key="mod_name")
-    modify_role = st.text_input("改成什么角色？", key="mod_role")
-    if st.button("更新"):
-        if modify_name and modify_role:
-            execute_query("UPDATE users SET role = ? WHERE name = ?", (modify_role, modify_name))
-            st.success(f"已更新 {modify_name} 的角色！")
-        else:
-            st.warning("请填写完整")
+            st.rerun()
 
-    st.divider()
-    st.subheader("🗑️ 删除员工")
-    delete_name = st.text_input("要开除谁？(输入名字)", key="del_name")
-    if st.button("删除", type="primary"):
-        if delete_name:
-            execute_query("DELETE FROM users WHERE name = ?", (delete_name,))
-            st.success(f"已删除 {delete_name}！")
-        else:
-            st.warning("请输入要删除的名字")
+# ================= 5. 主界面：搜索与多表展示 =================
+st.subheader("🔍 员工综合查询（输入名字或角色进行实时搜索）")
+# 实时搜索框
+search_query = st.text_input("搜索框：", "")
+
+data = get_joined_data(search_query)
 
 col1, col2 = st.columns([1, 1])
-data = get_data()
 
 with col1:
-    st.subheader("👥 当前员工列表")
+    st.subheader("👥 员工与薪资详情")
     st.dataframe(data, width='stretch')
 
 with col2:
     st.subheader("📈 团队角色分布")
     if not data.empty:
         role_counts = data['role'].value_counts()
-        chart_type = st.radio("选择图表类型：", ["柱状图", "饼图"], horizontal=True)
-        if chart_type == "柱状图":
-            st.bar_chart(role_counts)
-        else:
-            fig, ax = plt.subplots()
-            ax.pie(role_counts, labels=role_counts.index, autopct='%1.1f%%', startangle=90)
-            ax.axis('equal') 
-            st.pyplot(fig)
+        fig, ax = plt.subplots()
+        ax.pie(role_counts, labels=role_counts.index, autopct='%1.1f%%', startangle=90)
+        ax.axis('equal') 
+        st.pyplot(fig)
     else:
-        st.info("没有数据，请先添加员工。")
+        st.info("没有找到匹配的数据。")
