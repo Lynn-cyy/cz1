@@ -46,22 +46,15 @@ db_path = 'practice.db'
 def init_db():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    
-    # 建第一张表：员工表
     cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
-    
-    # 建第二张表：薪资表 (关联 user_id)
     cursor.execute("CREATE TABLE IF NOT EXISTS salaries (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, month TEXT)")
     
-    # 检查如果是新库，就塞点测试数据进去
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO users (name, role) VALUES ('张三', 'CTO')")
         cursor.execute("INSERT INTO users (name, role) VALUES ('王五', '财务')")
         cursor.execute("INSERT INTO users (name, role) VALUES ('李四', '销售')")
         cursor.execute("INSERT INTO users (name, role) VALUES ('赵六', '销售')")
-        
-        # 给张三、李四发点工资
         cursor.execute("INSERT INTO salaries (user_id, amount, month) VALUES (1, 50000, '2026-11')")
         cursor.execute("INSERT INTO salaries (user_id, amount, month) VALUES (2, 15000, '2026-11')")
         cursor.execute("INSERT INTO salaries (user_id, amount, month) VALUES (3, 8000, '2026-11')")
@@ -70,19 +63,15 @@ def init_db():
 
 init_db()
 
-# 获取数据函数 (支持搜索)
 def get_joined_data(search_term=""):
     conn = sqlite3.connect(db_path)
-    # 使用 LEFT JOIN 把员工和薪资连起来，并支持搜索
     query = """
         SELECT u.id, u.name, u.role, COALESCE(s.amount, 0) as 工资, s.month as 月份
         FROM users u
         LEFT JOIN salaries s ON u.id = s.user_id
     """
     if search_term:
-        # 如果搜索了，就加条件
         query += f" WHERE u.name LIKE '%{search_term}%' OR u.role LIKE '%{search_term}%'"
-        
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
@@ -94,9 +83,11 @@ def execute_query(query, params=()):
     conn.commit()
     conn.close()
 
-# ================= 4. 侧边栏：数据操作 =================
+# ================= 4. 侧边栏：完整数据操作 =================
 with st.sidebar:
     st.header("🛠️ 数据操作")
+    
+    # 新增
     st.subheader("➕ 新增员工")
     new_name = st.text_input("姓名", key="add_name")
     new_role = st.text_input("角色", key="add_role")
@@ -105,10 +96,38 @@ with st.sidebar:
             execute_query("INSERT INTO users (name, role) VALUES (?, ?)", (new_name, new_role))
             st.success("添加成功！")
             st.rerun()
+        else:
+            st.warning("请填写完整")
+
+    st.divider()
+
+    # 修改
+    st.subheader("✏️ 修改角色")
+    modify_name = st.text_input("要修改谁的名字？", key="mod_name")
+    modify_role = st.text_input("改成什么角色？", key="mod_role")
+    if st.button("更新"):
+        if modify_name and modify_role:
+            execute_query("UPDATE users SET role = ? WHERE name = ?", (modify_role, modify_name))
+            st.success(f"已更新 {modify_name}！")
+            st.rerun()
+        else:
+            st.warning("请填写完整")
+
+    st.divider()
+
+    # 删除
+    st.subheader("🗑️ 删除员工")
+    delete_name = st.text_input("要开除谁？(输入名字)", key="del_name")
+    if st.button("删除", type="primary"):
+        if delete_name:
+            execute_query("DELETE FROM users WHERE name = ?", (delete_name,))
+            st.success(f"已删除 {delete_name}！")
+            st.rerun()
+        else:
+            st.warning("请输入名字")
 
 # ================= 5. 主界面：搜索与多表展示 =================
 st.subheader("🔍 员工综合查询（输入名字或角色进行实时搜索）")
-# 实时搜索框
 search_query = st.text_input("搜索框：", "")
 
 data = get_joined_data(search_query)
