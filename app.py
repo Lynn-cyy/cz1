@@ -11,10 +11,25 @@ mpl.rcParams['axes.unicode_minus'] = False
 st.set_page_config(page_title="员工管理系统", page_icon="📊", layout="wide")
 st.title("📊 员工管理系统 & 数据看板")
 
-db_path = r'C:\Users\B1024327\practice.db'
+db_path ='practice.db'
 
 def get_data():
     conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # 检查表是否存在，如果不存在则自动创建并插入数据
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    if not cursor.fetchone():
+        cursor.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('张三', 'CTO')")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('王五', '财务')")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('李四', '销售')")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('赵六', '销售')")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('孙七', '技术')")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('周八', '技术')")
+        cursor.execute("INSERT INTO users (name, role) VALUES ('吴九', '技术')")
+        conn.commit()
+    
     df = pd.read_sql_query("SELECT * FROM users", conn)
     conn.close()
     return df
