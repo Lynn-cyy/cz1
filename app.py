@@ -2,22 +2,35 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib as mpl
+import matplotlib.font_manager as fm
+import urllib.request
+import os
 
-mpl.rcParams['font.sans-serif'] = ['SimHei', 'WenQuanYi Micro Hei', 'DejaVu Sans']
-mpl.rcParams['axes.unicode_minus'] = False
+# ================= 1. 解决云端图表中文乱码问题 =================
+font_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
+font_path = "NotoSansCJKsc-Regular.otf"
 
+# 如果本地没有字体文件，就自动下载
+if not os.path.exists(font_path):
+    urllib.request.urlretrieve(font_url, font_path)
+
+# 强制加载字体
+fm.fontManager.addfont(font_path)
+plt.rcParams['font.sans-serif'] = ['Noto Sans CJK SC'] 
+plt.rcParams['axes.unicode_minus'] = False
+
+# ================= 2. 页面基础设置 =================
 st.set_page_config(page_title="员工管理系统", page_icon="📊", layout="wide")
 st.title("📊 员工管理系统 & 数据看板")
 
-# 必须用相对路径
 db_path = 'practice.db'
 
+# ================= 3. 数据库操作函数 =================
 def get_data():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # 自动建表并填入数据（解决云端空库问题）
+    # 自动建表并插入测试数据
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
     if not cursor.fetchone():
         cursor.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
@@ -41,6 +54,7 @@ def execute_query(query, params=()):
     conn.commit()
     conn.close()
 
+# ================= 4. 侧边栏：数据操作 =================
 with st.sidebar:
     st.header("🛠️ 数据操作")
     
@@ -77,12 +91,14 @@ with st.sidebar:
         else:
             st.warning("请输入要删除的名字")
 
+# ================= 5. 主界面：表格与图表 =================
 col1, col2 = st.columns([1, 1])
 data = get_data()
 
 with col1:
     st.subheader("👥 当前员工列表")
-    st.dataframe(data, use_container_width=True)
+    # 修复了之前日志里提示的 use_container_width 弃用警告
+    st.dataframe(data, width='stretch')
 
 with col2:
     st.subheader("📈 团队角色分布")
