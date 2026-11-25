@@ -18,11 +18,10 @@ plt.rcParams['axes.unicode_minus'] = False
 # ================= 2. 页面基础设置 =================
 st.set_page_config(page_title="员工管理系统", page_icon="📊", layout="wide")
 
-# ================= 3. 登录状态管理（核心新增） =================
+# ================= 3. 登录状态管理 =================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# 如果没登录，只显示登录界面
 if not st.session_state.logged_in:
     st.title("🔐 系统登录")
     st.info("请先登录，才能查看员工数据看板。")
@@ -33,17 +32,16 @@ if not st.session_state.logged_in:
         submit_button = st.form_submit_button("登录")
         
         if submit_button:
-            # 这里的账号密码你可以自己随便改
             if username == "admin" and password == "123456":
                 st.session_state.logged_in = True
                 st.success("登录成功！正在加载系统...")
-                st.rerun() # 重新运行以显示主界面
+                st.rerun()
             else:
                 st.error("用户名或密码错误，请重试！")
     
-    st.stop() # 没登录的话，代码就停在这里，不往下执行
+    st.stop()
 
-# ================= 4. 以下是登录成功后的内容 =================
+# ================= 4. 登录成功后 =================
 st.sidebar.success("✅ 已登录: admin")
 if st.sidebar.button("退出登录"):
     st.session_state.logged_in = False
@@ -88,6 +86,7 @@ with st.sidebar:
             st.success("添加成功！")
         else:
             st.warning("请填写完整")
+            
     st.divider()
     st.subheader("✏️ 修改角色")
     modify_name = st.text_input("要修改谁的名字？", key="mod_name")
@@ -98,6 +97,7 @@ with st.sidebar:
             st.success(f"已更新 {modify_name} 的角色！")
         else:
             st.warning("请填写完整")
+
     st.divider()
     st.subheader("🗑️ 删除员工")
     delete_name = st.text_input("要开除谁？(输入名字)", key="del_name")
