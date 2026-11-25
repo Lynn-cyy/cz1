@@ -4,20 +4,20 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-# 设置中文字体，防止图表乱码
-mpl.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+mpl.rcParams['font.sans-serif'] = ['SimHei', 'WenQuanYi Micro Hei', 'DejaVu Sans']
 mpl.rcParams['axes.unicode_minus'] = False
 
 st.set_page_config(page_title="员工管理系统", page_icon="📊", layout="wide")
 st.title("📊 员工管理系统 & 数据看板")
 
-db_path ='practice.db'
+# 必须用相对路径
+db_path = 'practice.db'
 
 def get_data():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # 检查表是否存在，如果不存在则自动创建并插入数据
+    # 自动建表并填入数据（解决云端空库问题）
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
     if not cursor.fetchone():
         cursor.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)")
@@ -41,7 +41,6 @@ def execute_query(query, params=()):
     conn.commit()
     conn.close()
 
-# --- 侧边栏 ---
 with st.sidebar:
     st.header("🛠️ 数据操作")
     
@@ -78,7 +77,6 @@ with st.sidebar:
         else:
             st.warning("请输入要删除的名字")
 
-# --- 主界面 ---
 col1, col2 = st.columns([1, 1])
 data = get_data()
 
